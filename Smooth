@@ -1,0 +1,98 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+-- Settings
+local AimEnabled = false
+local Smoothness = 0.1      -- Lower is slower/smoother
+local AimbotMode = "Smooth"  -- "Instant" or "Smooth"
+local MaxFOV = 200           -- Max pixel radius from mouse to consider a target
+
+-- Gets the aimable body part of the character (for R6/R15)
+local function getBody(character)
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+end
+
+-- Wall check function using raycasting
+local function isVisible(targetPart)
+    local origin = Camera.CFrame.Position
+    local direction = (targetPart.Position - origin).Unit * 500
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local raycastResult = workspace:Raycast(origin, direction, raycastParams)
+    if raycastResult then
+        return raycastResult.Instance:IsDescendantOf(targetPart.Parent)
+    end
+    return false
+end
+
+-- Get closest visible player within FOV and wall check
+local function getClosestPlayer()
+    local closest = nil
+    local shortest = MaxFOV
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local character = player.Character
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+            if humanoid and humanoid.Health > 0 then
+                local part = getBody(character)
+                if part and isVisible(part) then
+                    local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if dist < shortest then
+                            shortest = dist
+                            closest = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+-- Smooth or instant aim toward the target
+local function aimAtTarget()
+    local targetPart = getClosestPlayer()
+    if targetPart then
+        local targetPos = targetPart.Position
+        local camPos = Camera.CFrame.Position
+        local aimCFrame = CFrame.new(camPos, targetPos)
+
+        if AimbotMode == "Instant" then
+            Camera.CFrame = aimCFrame
+        else
+            Camera.CFrame = Camera.CFrame:Lerp(aimCFrame, Smoothness)
+        end
+    end
+end
+
+-- Toggle aimbot with right-click hold
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.UserInputType == Enum.UserInputType.MouseButton2 then
+        AimEnabled = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, processed)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        AimEnabled = false
+    end
+end)
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    if AimEnabled then
+        aimAtTarget()
+    end
+end)
